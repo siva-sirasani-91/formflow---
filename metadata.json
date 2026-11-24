@@ -1,0 +1,6 @@
+{
+  "name": "FormFlow",
+  "description": "Create custom business forms, register customers, manage customer records, and export PDF or Excel reports from one workspace.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
