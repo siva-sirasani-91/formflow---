@@ -29,6 +29,12 @@ public class UserSettings {
     @Column(name = "last_backup_at")
     private Instant lastBackupAt;
 
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt = Instant.now();
+
+    @Column(name = "updated_at", nullable = false)
+    private Instant updatedAt = Instant.now();
+
     public Long getUserId() { return userId; }
     public void setUserId(Long userId) { this.userId = userId; }
     public String getLanguage() { return language; }
@@ -43,4 +49,7 @@ public class UserSettings {
     public void setDailyBackup(boolean dailyBackup) { this.dailyBackup = dailyBackup; }
     public Instant getLastBackupAt() { return lastBackupAt; }
     public void setLastBackupAt(Instant lastBackupAt) { this.lastBackupAt = lastBackupAt; }
+    public Instant getCreatedAt() { return createdAt; }
+    public Instant getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
 }

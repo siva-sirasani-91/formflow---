@@ -5,6 +5,7 @@ import com.formflow.service.AuthService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -29,6 +30,11 @@ public class AuthController {
         return ResponseEntity.ok(authService.login(request));
     }
 
+    @PostMapping("/logout")
+    public ResponseEntity<Map<String, String>> logout() {
+        return ResponseEntity.ok(authService.logout());
+    }
+
     @PostMapping("/forgot-password")
     public ResponseEntity<MessageResponse> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
         return ResponseEntity.ok(authService.forgotPassword(request));
@@ -41,8 +47,12 @@ public class AuthController {
 
     @GetMapping("/me")
     public ResponseEntity<Map<String, UserResponse>> me(
+            Authentication authentication,
             @RequestHeader(value = "Authorization", required = false) String authHeader
     ) {
+        if (authentication != null && authentication.getPrincipal() instanceof Long userId) {
+            return ResponseEntity.ok(Map.of("user", authService.getCurrentUserById(userId)));
+        }
         return ResponseEntity.ok(Map.of("user", authService.getCurrentUser(authHeader)));
     }
 }

@@ -1,13 +1,34 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 
 async function requestJson(path, options = {}) {
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options.headers || {}),
-    },
-    ...options,
-  });
+  let response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(options.headers || {}),
+      },
+      ...options,
+    });
+  } catch (networkErr) {
+    if (networkErr?.name === 'AbortError') {
+      throw networkErr;
+    }
+    const error = new Error(
+      'Unable to connect to the backend server. Please verify Spring Boot and MySQL are running.'
+    );
+    error.status = 0;
+    throw error;
+  }
+
+  const contentType = response.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    const error = new Error(
+      'Unable to connect to the Spring Boot backend. Please verify Spring Boot and MySQL are running.'
+    );
+    error.status = response.status === 200 ? 503 : response.status;
+    throw error;
+  }
 
   let payload = {};
   try {
@@ -36,6 +57,12 @@ export const authApi = {
     return requestJson('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  },
+  logout(token) {
+    return requestJson('/api/auth/logout', {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
   },
   forgotPassword(email) {

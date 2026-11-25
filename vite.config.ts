@@ -1,13 +1,13 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import fs from 'fs';
+import type { IncomingMessage, ServerResponse } from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import {defineConfig} from 'vite';
-import {handleAuthRequest} from './server/authStore.js';
-import {handleWorkspaceRequest} from './server/workspaceStore.js';
+import { defineConfig } from 'vite';
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
+const springBackendUrl = (process.env.SPRING_BACKEND_URL || 'http://localhost:8080').replace(/\/+$/, '');
 
 export default defineConfig(() => {
   return {
@@ -15,61 +15,27 @@ export default defineConfig(() => {
       react(),
       tailwindcss(),
       {
-        name: 'formflow-dev-api',
+        name: 'formflow-proxy-loop-guard',
         configureServer(server) {
-          server.middlewares.use((req, res, next) => {
-            const rawUrl = req.url || '';
-            const [urlPath, rawQuery = ''] = rawUrl.split('?');
-            if (!urlPath.startsWith('/api/')) {
-              return next();
-            }
-
-            const chunks: Buffer[] = [];
-            req.on('data', (chunk: Buffer) => chunks.push(chunk));
-            req.on('end', () => {
-              try {
-                let parsedBody = {};
-                if (chunks.length > 0) {
-                  try {
-                    parsedBody = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-                  } catch {
-                    parsedBody = {};
-                  }
-                }
-                const queryParams = new URLSearchParams(rawQuery);
-                const result =
-                  handleAuthRequest(
-                    req.method || 'GET',
-                    urlPath,
-                    parsedBody,
-                    req.headers.authorization
-                  ) ||
-                  handleWorkspaceRequest(
-                    req.method || 'GET',
-                    urlPath,
-                    queryParams,
-                    parsedBody,
-                    req.headers.authorization
-                  );
-                if (!result) {
-                  res.statusCode = 404;
+          return () => {
+            server.middlewares.stack.unshift({
+              route: '',
+              handle: (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+                if (req.url?.startsWith('/api') && req.headers['x-formflow-proxy-hop']) {
+                  res.statusCode = 503;
                   res.setHeader('Content-Type', 'application/json');
-                  res.end(JSON.stringify({ message: 'Endpoint not found.' }));
+                  res.end(
+                    JSON.stringify({
+                      message:
+                        'Unable to reach the Spring Boot backend. Ensure the Spring Boot API and MySQL server are running.',
+                    })
+                  );
                   return;
                 }
-                res.statusCode = result.status;
-                res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify(result.data));
-              } catch (err) {
-                console.error('[FormFlow API Error]', err);
-                if (!res.headersSent) {
-                  res.statusCode = 500;
-                  res.setHeader('Content-Type', 'application/json');
-                  res.end(JSON.stringify({ message: 'Internal server error.' }));
-                }
-              }
+                next();
+              },
             });
-          });
+          };
         },
       },
       // Copies src/assets into dist/ so root-relative URLs like
@@ -86,7 +52,7 @@ export default defineConfig(() => {
           const srcAssets = path.resolve(rootDir, 'src/assets');
           const distAssets = path.resolve(distDir, 'src/assets');
           if (fs.existsSync(distDir) && fs.existsSync(srcAssets)) {
-            fs.cpSync(srcAssets, distAssets, {recursive: true, force: true});
+            fs.cpSync(srcAssets, distAssets, { recursive: true, force: true });
           }
         },
       },
@@ -100,11 +66,34 @@ export default defineConfig(() => {
       host: '0.0.0.0',
       port: 3000,
       allowedHosts: true,
+      proxy: {
+        '/api': {
+          target: springBackendUrl,
+          changeOrigin: true,
+          secure: false,
+          configure(proxy) {
+            proxy.on('proxyReq', (proxyReq) => {
+              proxyReq.setHeader('X-FormFlow-Proxy-Hop', '1');
+            });
+            proxy.on('error', (_err, _req, res) => {
+              if ('headersSent' in res && !res.headersSent) {
+                res.writeHead(502, { 'Content-Type': 'application/json' });
+                res.end(
+                  JSON.stringify({
+                    message:
+                      'Unable to reach the Spring Boot backend. Ensure the Spring Boot API and MySQL server are running.',
+                  })
+                );
+              }
+            });
+          },
+        },
+      },
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modify—file watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
-      watch: process.env.DISABLE_HMR === 'true' ? null : { ignored: ['**/.data/**'] },
+      watch: process.env.DISABLE_HMR === 'true' ? null : { ignored: ['**/.backups/**', '**/backend/target/**'] },
     },
   };
 });

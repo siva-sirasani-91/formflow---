@@ -1,30 +1,61 @@
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { handleAuthRequest } from './server/authStore.js';
-import { handleWorkspaceRequest } from './server/workspaceStore.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
+const SPRING_BACKEND_URL = (process.env.SPRING_BACKEND_URL || 'http://localhost:8080').replace(/\/+$/, '');
 
-app.use(express.json({ limit: '5mb' }));
+app.disable('x-powered-by');
+app.use('/api', express.raw({ type: '*/*', limit: '10mb' }));
 
-app.all('/api/*', (req, res) => {
+app.all('/api/*', async (req, res) => {
+  if (req.headers['x-formflow-proxy-hop']) {
+    return res.status(503).json({
+      message:
+        'Unable to reach the Spring Boot backend. Ensure the Spring Boot API and MySQL server are running.',
+    });
+  }
+
   try {
-    const queryParams = new URLSearchParams(req.url.split('?')[1] || '');
-    const result =
-      handleAuthRequest(req.method, req.path, req.body, req.headers.authorization) ||
-      handleWorkspaceRequest(req.method, req.path, queryParams, req.body, req.headers.authorization);
-    if (!result) {
-      return res.status(404).json({ message: 'Endpoint not found.' });
+    const targetUrl = new URL(req.originalUrl, `${SPRING_BACKEND_URL}/`);
+    const headers = {
+      'X-FormFlow-Proxy-Hop': '1',
+    };
+    if (req.headers['content-type']) {
+      headers['Content-Type'] = String(req.headers['content-type']);
     }
-    return res.status(result.status).json(result.data);
+    if (req.headers.accept) {
+      headers['Accept'] = String(req.headers.accept);
+    }
+    if (req.headers.authorization) {
+      headers['Authorization'] = String(req.headers.authorization);
+    }
+
+    const method = req.method.toUpperCase();
+    const hasBody = method !== 'GET' && method !== 'HEAD' && Buffer.isBuffer(req.body) && req.body.length > 0;
+
+    const upstreamResponse = await fetch(targetUrl, {
+      method,
+      headers,
+      body: hasBody ? req.body : undefined,
+      redirect: 'manual',
+    });
+
+    const contentType = upstreamResponse.headers.get('content-type') || 'application/json';
+    const responseBuffer = Buffer.from(await upstreamResponse.arrayBuffer());
+    res.status(upstreamResponse.status);
+    res.setHeader('Content-Type', contentType);
+    return res.send(responseBuffer);
   } catch (err) {
-    console.error('[FormFlow Server Error]', err);
-    return res.status(500).json({ message: 'Internal server error.' });
+    console.error('[FormFlow Proxy Error]', err?.message || err);
+    return res.status(502).json({
+      message:
+        'Unable to reach the Spring Boot backend. Ensure the Spring Boot API and MySQL server are running.',
+    });
   }
 });
 
@@ -36,5 +67,5 @@ app.get('*', (_req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`FormFlow server running on http://0.0.0.0:${PORT}`);
+  console.log(`FormFlow frontend server running on http://0.0.0.0:${PORT} (API proxy -> ${SPRING_BACKEND_URL})`);
 });

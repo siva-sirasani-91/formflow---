@@ -24,6 +24,9 @@ public class PasswordResetToken {
     @Column(nullable = false)
     private boolean used = false;
 
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt = Instant.now();
+
     public Long getId() { return id; }
     public String getToken() { return token; }
     public void setToken(String token) { this.token = token; }
@@ -33,4 +36,5 @@ public class PasswordResetToken {
     public void setExpiresAt(Instant expiresAt) { this.expiresAt = expiresAt; }
     public boolean isUsed() { return used; }
     public void setUsed(boolean used) { this.used = used; }
+    public Instant getCreatedAt() { return createdAt; }
 }

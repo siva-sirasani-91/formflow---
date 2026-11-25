@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 
 function getToken() {
   return localStorage.getItem('formflow_auth_token') || sessionStorage.getItem('formflow_auth_token') || '';
@@ -6,14 +6,35 @@ function getToken() {
 
 async function apiRequest(path, options = {}) {
   const token = getToken();
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(options.headers || {}),
-    },
-    ...options,
-  });
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers || {}),
+      },
+      ...options,
+    });
+  } catch (networkErr) {
+    if (networkErr?.name === 'AbortError') {
+      throw networkErr;
+    }
+    const err = new Error(
+      'Unable to connect to the backend server. Please verify Spring Boot and MySQL are running.'
+    );
+    err.status = 0;
+    throw err;
+  }
+
+  const contentType = res.headers.get('content-type') || '';
+  if (!contentType.includes('application/json')) {
+    const err = new Error(
+      'Unable to connect to the Spring Boot backend. Please verify Spring Boot and MySQL are running.'
+    );
+    err.status = res.status === 200 ? 503 : res.status;
+    throw err;
+  }
 
   let payload = {};
   try {

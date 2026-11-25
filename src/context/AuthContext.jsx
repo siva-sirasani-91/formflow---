@@ -98,6 +98,10 @@ export function AuthProvider({ children }) {
   }
 
   function logout() {
+    const currentToken = readStoredToken();
+    if (currentToken) {
+      authApi.logout(currentToken).catch(() => {});
+    }
     clearSession();
   }
 

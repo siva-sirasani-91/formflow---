@@ -1,44 +1,13 @@
-# node_modules/
-# build/
-# dist/
-# coverage/
-# .DS_Store
-# *.log
-# .env*
-# !.env.example
-
-
-
-
-
-
-
-
-
-# Frontend dependencies
 node_modules/
-
-# Build files
 build/
 dist/
 coverage/
-
-# Java build files
-backend/target/
-target/
-
-# Local application data
-.data/
-
-# Environment variables and secrets
+.DS_Store
+*.log
 .env*
 !.env.example
+.data/
+.backups/
+backend/target/
 
-# Logs
-*.log
-
-# Operating system files
-.DS_Store
-Thumbs.db
-
-/.aistudio/
+.aistudio/
