@@ -1,4 +1,7 @@
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+// const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+const API_BASE = import.meta.env.DEV
+  ? ''
+  : (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 
 async function requestJson(path, options = {}) {
   let response;

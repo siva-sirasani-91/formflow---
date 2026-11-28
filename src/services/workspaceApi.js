@@ -1,4 +1,8 @@
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+// const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
+
+const API_BASE = import.meta.env.DEV
+  ? ''
+  : (import.meta.env.VITE_API_BASE_URL || '').replace(/\/+$/, '');
 
 function getToken() {
   return localStorage.getItem('formflow_auth_token') || sessionStorage.getItem('formflow_auth_token') || '';
